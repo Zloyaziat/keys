@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, TEXT
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, TEXT, Interval, TIMESTAMP
 from sqlalchemy.orm import relationship
 from app.db.database import Base,BaseSecret
 
@@ -28,7 +28,7 @@ class Mcc(Base):
     __tablename__ = "mcc"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
 
     transaction = relationship("Ttransaction",back_populates="mcc")
 
@@ -78,6 +78,7 @@ class Support(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer,ForeignKey("users.user_id"))
+    date = Column(TIMESTAMP,nullable=False)
     type = Column(String,nullable=False)
     ui_version_app = Column(String, nullable=False)
 
@@ -87,11 +88,11 @@ class Session(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer,ForeignKey("users.user_id"))
-    session_duration = Column(String, nullable=False)  
     type = Column(String,nullable=False)
     clicks_on_new_ui = Column(Integer)
     clicks_on_old_ui = Column(Integer)
     ui_version_app = Column(String, nullable=False)
+    session_duration = Column(Interval, nullable=False)  
 
     user = relationship("User", back_populates="session")
 
