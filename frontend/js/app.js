@@ -8,10 +8,21 @@ function destroyChart(id) {
 }
 
 function getFilters() {
+  const dateFrom = document.getElementById('date_from')?.value || null;
+  const dateTo = document.getElementById('date_to')?.value || null;
+  
+  // Преобразуем даты в ISO строку с временем (если заданы)
+  const date_from = dateFrom || null;
+  const date_to = dateTo || null;
+
   return {
+    date_from,
+    date_to,
     sex: document.getElementById('sex')?.value || null,
     age_from: document.getElementById('min_age')?.value || null,
     age_to: document.getElementById('max_age')?.value || null,
+    city: document.getElementById('city')?.value || null,
+    category: document.getElementById('category')?.value || null,
     payment_method: document.getElementById('payment')?.value || null
   };
 }
@@ -34,7 +45,7 @@ async function loadDashboard() {
     const data = await res.json();
     console.log('Полученные данные:', data);
 
-    // Проверяем наличие данных перед рендерингом
+    // UI и ошибки
     if (data.ui && Array.isArray(data.ui)) {
       renderUI(data.ui);
       renderErrors(data.ui);
@@ -42,10 +53,18 @@ async function loadDashboard() {
       console.warn('Нет данных ui или неверный формат:', data.ui);
     }
 
+    // Транзакции (средний чек)
     if (data.transtions && Array.isArray(data.transtions)) {
       renderTransactions(data.transtions);
     } else {
       console.warn('Нет данных транзакций или неверный формат:', data.transtions);
+    }
+
+    // Транзакции по стекам (четвёртый график)
+    if (data.transtions_type && data.transtions_type.combined) {
+      renderTransactionsType(data.transtions_type.combined);
+    } else {
+      console.warn('Нет данных transtions_type или неверный формат:', data.transtions_type);
     }
 
   } catch (error) {
@@ -283,9 +302,78 @@ function renderTransactions(data) {
   }
 }
 
+function renderTransactionsType(data) {
+  console.log('Рендеринг графика транзакций по стекам с данными:', data);
+  
+  const canvas = document.getElementById('transactionTypeChart');
+  if (!canvas) {
+    console.error('Canvas transactionTypeChart не найден в DOM');
+    return;
+  }
+
+  destroyChart('transactionsType');
+
+  if (!data || !data.labels || !data.datasets) {
+    console.warn('Нет данных для графика транзакций по стекам');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  
+  try {
+    // Преобразуем данные в формат Chart.js
+    const datasets = data.datasets.map((ds, index) => ({
+      label: ds.label,
+      data: ds.data,
+      backgroundColor: index === 0 ? 'rgba(153, 102, 255, 0.7)' : 'rgba(255, 159, 64, 0.7)',
+      borderColor: index === 0 ? 'rgba(153, 102, 255, 1)' : 'rgba(255, 159, 64, 1)',
+      borderWidth: 1
+    }));
+
+    charts['transactionsType'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#e2e8f0'
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { 
+              color: '#e2e8f0',
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: { color: '#334155' }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#e2e8f0' },
+            grid: { color: '#334155' }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка создания графика транзакций по стекам:', error);
+  }
+}
+
 // Инициализация
 function initEventListeners() {
-  const filterElements = ['sex', 'min_age', 'max_age', 'payment'];
+  const filterElements = [
+    'date_from', 'date_to', 'sex', 'min_age', 'max_age', 
+    'city', 'category', 'payment'
+  ];
   
   filterElements.forEach(id => {
     const element = document.getElementById(id);

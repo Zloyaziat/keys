@@ -24,6 +24,7 @@ h1 {
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 20px;
+  align-items: center;
 }
 button, select, input {
   padding: 8px 12px;
@@ -56,12 +57,17 @@ button:hover {
 }
 .chart-container {
   position: relative;
-  height: 300px;  /* 🔥 ВАЖНО: фиксированная высота */
+  height: 300px;
   width: 100%;
 }
 canvas {
   width: 100% !important;
   height: 100% !important;
+}
+.filter-group {
+  display: flex;
+  gap: 5px;
+  align-items: center;
 }
 </style>
 </head>
@@ -70,6 +76,15 @@ canvas {
 <h1>📊 Analytics Dashboard</h1>
 
 <div class="filters">
+  <div class="filter-group">
+    <label for="date_from">📅 От:</label>
+    <input type="date" id="date_from">
+  </div>
+  <div class="filter-group">
+    <label for="date_to">📅 До:</label>
+    <input type="date" id="date_to">
+  </div>
+
   <select id="sex">
     <option value="">Все</option>
     <option value="M">Мужчины</option>
@@ -78,6 +93,10 @@ canvas {
 
   <input type="number" id="min_age" placeholder="Возраст от">
   <input type="number" id="max_age" placeholder="Возраст до">
+
+  <input type="text" id="city" placeholder="Город">
+
+  <input type="text" id="category" placeholder="Категория">
 
   <select id="payment">
     <option value="">Все способы оплаты</option>
@@ -108,6 +127,13 @@ canvas {
     <h3>💰 Средний чек по категориям</h3>
     <div class="chart-container">
       <canvas id="transactionChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3> Популярные акции </h3>
+    <div class="chart-container">
+      <canvas id="transactionTypeChart"></canvas>
     </div>
   </div>
 </div>

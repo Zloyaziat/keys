@@ -47,11 +47,10 @@ class Stack(Base):
     __tablename__ = "stack"
 
     id = Column(Integer, primary_key=True, index=True)
-    transaction_id = Column(Integer,ForeignKey("transaction.id"))
     name = Column(String, nullable=False)
     conditions = Column(TEXT)
 
-    transaction = relationship("Ttransaction",back_populates="stack")
+    
 
 
 class Ttransaction(Base):
@@ -70,7 +69,7 @@ class Ttransaction(Base):
     user = relationship("User", back_populates="transaction")
     mcc = relationship("Mcc", back_populates="transaction")
     place = relationship("Place", back_populates="transaction")
-    stack = relationship("Stack",back_populates="transaction")
+   
 
 # Критерии больше про удачные решения дизайна/функционала
 class Support(Base):
@@ -93,7 +92,7 @@ class Session(Base):
     clicks_on_old_ui = Column(Integer)
     ui_version_app = Column(String, nullable=False)
     session_duration = Column(Interval, nullable=False)  
-
+    date_start =  Column(Date, nullable=False)  
     user = relationship("User", back_populates="session")
 
 
