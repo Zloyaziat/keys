@@ -62,134 +62,6 @@ class Filter(BaseModel):
     target_date: Optional[datetime] = None
 
 
-async def get_table_category_comparison(
-    db: AsyncSession,
-    filter: Optional[Filter] = None
-) -> Dict[str, Any]:
-
-    # Вспомогательная функция
-    async def get_period_data(start_date: datetime, end_date: datetime):
-
-        stmt = (
-            select(
-                models.Mcc.name.label("category"),
-                func.count(func.distinct(models.Ttransaction.id)).label("count")
-            )
-            .select_from(models.Ttransaction)
-            .join(models.Mcc, models.Ttransaction.mcc_id == models.Mcc.id)
-            .join(models.User, models.User.user_id == models.Ttransaction.user_id)
-            .outerjoin(models.Place, models.Place.id == models.Ttransaction.place_id)
-        )
-        if filter and (filter.date_from or filter.date_to):
-            conditions = []
-
-            if filter.date_from:
-                conditions.append(models.Ttransaction.date >= filter.date_from)
-
-            if filter.date_to:
-                conditions.append(models.Ttransaction.date <= filter.date_to)
-        else:
-            conditions = [
-                models.Ttransaction.date >= start_date,
-                models.Ttransaction.date <= end_date,
-            ]
-        # ФИЛЬТРЫ
-        if filter:
-            if filter.sex:
-                conditions.append(models.User.sex == filter.sex)
-
-            if filter.age_from:
-                conditions.append(models.User.age >= filter.age_from)
-
-            if filter.age_to:
-                conditions.append(models.User.age <= filter.age_to)
-
-            if filter.min_sum:
-                conditions.append(models.Ttransaction.sum >= filter.min_sum)
-
-            if filter.max_sum:
-                conditions.append(models.Ttransaction.sum <= filter.max_sum)
-
-            if filter.payment_method:
-                conditions.append(models.Ttransaction.payment_method == filter.payment_method)
-
-            if filter.city:
-                conditions.append(models.Place.city == filter.city)
-
-            if filter.category:
-                conditions.append(models.Mcc.name == filter.category)
-
-        stmt = stmt.where(and_(*conditions))
-        stmt = stmt.group_by(models.Mcc.name)
-        stmt = stmt.order_by(desc("count"))
-
-        result = await db.execute(stmt)
-
-        return [
-            {"name": row.category, "value": row.count}
-            for row in result
-        ]
-
-    # ЛОГИКА ПЕРИОДОВ
-    today = datetime.now()
-
-    if filter and filter.comparison_type == "mom":
-        # Month over Month
-        target = filter.target_date or today
-
-        current_start = target.replace(day=1)
-        current_end = (current_start + relativedelta(months=1)) - timedelta(days=1)
-
-        previous_start = current_start - relativedelta(months=1)
-        previous_end = current_start - timedelta(days=1)
-
-        label1 = current_start.strftime("%B %Y")
-        label2 = previous_start.strftime("%B %Y")
-
-    elif filter and filter.comparison_type == "yoy":
-        # Year over Year
-        target = filter.target_date or today
-
-        current_start = target.replace(month=1, day=1)
-        current_end = target
-
-        previous_start = current_start.replace(year=current_start.year - 1)
-        previous_end = current_end.replace(year=current_end.year - 1)
-
-        label1 = str(current_start.year)
-        label2 = str(previous_start.year)
-
-    else:
-        # Последние 30 дней
-        current_start = today - timedelta(days=30)
-        current_end = today
-
-        previous_start = current_start - timedelta(days=30)
-        previous_end = current_start - timedelta(days=1)
-
-        label1 = "Последние 30 дней"
-        label2 = "Предыдущие 30 дней"
-
-    # ПОЛУЧАЕМ ДАННЫЕ
-    current_data = await get_period_data(current_start, current_end)
-    previous_data = await get_period_data(previous_start, previous_end)
-
-    # ОБЪЕДИНЕНИЕ ДЛЯ ГРАФИКОВ
-    combined = combine_data_for_charts(current_data, previous_data, label1, label2)
-
-    return {
-        "periods": [
-            {
-                "label": label1,
-                "data": current_data[:10]
-            },
-            {
-                "label": label2,
-                "data": previous_data[:10]
-            }
-        ],
-        "combined": combined
-    }
 def combine_data_for_charts(current_data, previous_data, label1, label2):
 
     all_categories = set()
@@ -232,14 +104,11 @@ async def get_table_ui(db: AsyncSession,filter: Optional[Filter] = None):
     stmt = (
         select(
             models.Session.type.label("type"),
-            models.Session.ui_version_app,
             func.sum(models.Session.clicks_on_old_ui).label("old"),
             func.sum(models.Session.clicks_on_new_ui).label("new"),
             func.avg(func.extract('epoch', models.Session.session_duration)).label("avg_duration"),
-            func.count(models.Support.id).label("errors_count")
         )
         .join(models.User, models.User.user_id == models.Session.user_id)
-        .outerjoin(models.Support, models.Support.user_id == models.User.user_id)
     )
 
     # ФИЛЬТРЫ
@@ -265,18 +134,16 @@ async def get_table_ui(db: AsyncSession,filter: Optional[Filter] = None):
     if conditions:
         stmt = stmt.where(and_(*conditions))
 
-    stmt = stmt.group_by(models.Session.type, models.Session.ui_version_app)
+    stmt = stmt.group_by(models.Session.type)
 
     result = await db.execute(stmt)
 
     return [
         {
             "type": row.type,
-            "ui_version": row.ui_version_app,
             "clicks_old": row.old,
             "clicks_new": row.new,
-            "avg_duration": int(row.avg_duration) if row.avg_duration else 0,
-            "errors": row.errors_count
+            "avg_duration": int(row.avg_duration) if row.avg_duration else 0
         }
         for row in result
     ]
@@ -334,7 +201,7 @@ async def get_table_transtions(db: AsyncSession, filter: Optional[Filter] = None
 
     stmt = stmt.group_by(models.Mcc.name)
     stmt = stmt.order_by(desc("avg_sum"))
-
+    stmt = stmt.limit(10)
     result = await db.execute(stmt)
 
     return [
@@ -347,8 +214,6 @@ async def get_table_transtions(db: AsyncSession, filter: Optional[Filter] = None
     ]
 async def get_table_transtions_type(db : AsyncSession, filter : Optional[Filter] = None):
     async def get_period_data(start_date: datetime, end_date: datetime):
-
-
         stmt = (
             select(
                 models.Stack.name.label('stack'),
@@ -359,10 +224,9 @@ async def get_table_transtions_type(db : AsyncSession, filter : Optional[Filter]
             .join(models.User, models.Ttransaction.user_id == models.User.user_id)  
             .outerjoin(models.Place, models.Ttransaction.place_id == models.Place.id)
         )
-
+        conditions = []
         # ФИЛЬТРЫ
         if filter and (filter.date_from or filter.date_to):
-            conditions = []
 
             if filter.date_from:
                 conditions.append(models.Ttransaction.date >= filter.date_from)
@@ -466,7 +330,114 @@ async def get_table_transtions_type(db : AsyncSession, filter : Optional[Filter]
         ],
         "combined": combined
     }
+async def get_table_erorr(db : AsyncSession,filter : Optional[Filter] = None):
+    async def get_period_data(start_date: datetime, end_date: datetime):
+        stmt = (
+            select(
+                models.Support.ui_version_app.label('version'),
+                func.count(models.Support.id).label('count')
+            )
+            .select_from(models.Support)
+            .join(models.User, models.Support.user_id == models.User.user_id) 
 
+        )
+
+        # ФИЛЬТРЫ
+        if filter and (filter.date_from or filter.date_to):
+            conditions = []
+
+            if filter.date_from:
+                conditions.append(models.Support.date >= filter.date_from)
+
+            if filter.date_to:
+                conditions.append(models.Support.date <= filter.date_to)
+        else:
+            conditions = [
+                models.Support.date >= start_date,
+                models.Support.date <= end_date,
+            ]
+
+        # 2. ОСТАЛЬНЫЕ ФИЛЬТРЫ (ВСЕГДА ДОБАВЛЯЕМ)
+        if filter:
+            if filter.sex:
+                conditions.append(models.User.sex == filter.sex)
+
+            if filter.age_from:
+                conditions.append(models.User.age >= filter.age_from)
+
+            if filter.age_to:
+                conditions.append(models.User.age <= filter.age_to)
+
+            
+
+        stmt = stmt.where(and_(*conditions))
+        stmt = stmt.group_by(models.Support.ui_version_app)
+        stmt = stmt.order_by(desc("count"))
+
+        result = await db.execute(stmt)
+        
+        return [
+            {"name": row.version, "value": row.count}
+            for row in result
+        ]
+    
+    today = datetime.now()
+            
+    if filter and filter.comparison_type == "mom":
+        # Month over Month
+        target = filter.target_date or today
+
+        current_start = target.replace(day=1)
+        current_end = (current_start + relativedelta(months=1)) - timedelta(days=1)
+
+        previous_start = current_start - relativedelta(months=1)
+        previous_end = current_start - timedelta(days=1)
+
+        label1 = current_start.strftime("%B %Y")
+        label2 = previous_start.strftime("%B %Y")
+
+    elif filter and filter.comparison_type == "yoy":
+        # Year over Year
+        target = filter.target_date or today
+
+        current_start = target.replace(month=1, day=1)
+        current_end = target
+
+        previous_start = current_start.replace(year=current_start.year - 1)
+        previous_end = current_end.replace(year=current_end.year - 1)
+
+        label1 = str(current_start.year)
+        label2 = str(previous_start.year)
+
+    else:
+        # Последние 30 дней
+        current_start = today - timedelta(days=30)
+        current_end = today
+
+        previous_start = current_start - timedelta(days=30)
+        previous_end = current_start - timedelta(days=1)
+
+        label1 = "Последние 30 дней"
+        label2 = "Предыдущие 30 дней"
+
+    # ПОЛУЧАЕМ ДАННЫЕ
+    current_data = await get_period_data(current_start, current_end)
+    previous_data = await get_period_data(previous_start, previous_end)
+    combined = combine_data_for_charts(current_data, previous_data, label1, label2)
+
+    return {
+        "periods": [
+            {
+                "label": label1,
+                "data": current_data[:10]
+            },
+            {
+                "label": label2,
+                "data": previous_data[:10]
+            }
+        ],
+        "combined": combined
+    }
 
 # Эндпоинт для отдачи HTML-страницы
 @app.get("/", response_class=HTMLResponse)
@@ -481,10 +452,10 @@ async def index():
 @app.get('/api/data/')
 async def get_data(db: AsyncSession = Depends(get_db)):
     return {
-        'category': await get_table_category_comparison(db),
         'ui': await get_table_ui(db),
         'transtions': await get_table_transtions(db),
-        'transtions_type': await get_table_transtions_type(db)
+        'transtions_type': await get_table_transtions_type(db),
+        'errors' : await get_table_erorr(db)
     }
 
 
@@ -492,12 +463,8 @@ async def get_data(db: AsyncSession = Depends(get_db)):
 @app.post('/api/')
 async def filter_data(filter: Filter, db: AsyncSession = Depends(get_db)):
     return {
-        'category': await get_table_category_comparison(db, filter),
         'ui': await get_table_ui(db, filter),
         'transtions': await get_table_transtions(db, filter),
-        'transtions_type': await get_table_transtions_type(db,filter)
+        'transtions_type': await get_table_transtions_type(db,filter),
+        'errors' : await get_table_erorr(db,filter)
     }
-
-
-
-

@@ -1,400 +1,373 @@
-let charts = {};
+// app.js - исправленная версия
 
-function destroyChart(id) {
-  if (charts[id]) {
-    charts[id].destroy();
-    delete charts[id];
-  }
-}
+let uiChart, errorChart, transactionChart, transactionTypeChart;
 
+// Функция для получения значений фильтров
 function getFilters() {
-  const dateFrom = document.getElementById('date_from')?.value || null;
-  const dateTo = document.getElementById('date_to')?.value || null;
-  
-  // Преобразуем даты в ISO строку с временем (если заданы)
-  const date_from = dateFrom || null;
-  const date_to = dateTo || null;
-
-  return {
-    date_from,
-    date_to,
-    sex: document.getElementById('sex')?.value || null,
-    age_from: document.getElementById('min_age')?.value || null,
-    age_to: document.getElementById('max_age')?.value || null,
-    city: document.getElementById('city')?.value || null,
-    category: document.getElementById('category')?.value || null,
-    payment_method: document.getElementById('payment')?.value || null
-  };
+    return {
+        date_from: document.getElementById('date_from').value || null,
+        date_to: document.getElementById('date_to').value || null,
+        sex: document.getElementById('sex').value || null,
+        age_from: document.getElementById('min_age').value ? parseInt(document.getElementById('min_age').value) : null,
+        age_to: document.getElementById('max_age').value ? parseInt(document.getElementById('max_age').value) : null,
+        city: document.getElementById('city').value || null,
+        category: document.getElementById('category').value || null,
+        payment_method: document.getElementById('payment').value ? parseInt(document.getElementById('payment').value) : null
+    };
 }
 
-async function loadDashboard() {
-  try {
-    const filters = getFilters();
-    console.log('Отправляю фильтры:', filters);
-
-    const res = await fetch('/api/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(filters)
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-
-    const data = await res.json();
-    console.log('Полученные данные:', data);
-
-    // UI и ошибки
-    if (data.ui && Array.isArray(data.ui)) {
-      renderUI(data.ui);
-      renderErrors(data.ui);
-    } else {
-      console.warn('Нет данных ui или неверный формат:', data.ui);
-    }
-
-    // Транзакции (средний чек)
-    if (data.transtions && Array.isArray(data.transtions)) {
-      renderTransactions(data.transtions);
-    } else {
-      console.warn('Нет данных транзакций или неверный формат:', data.transtions);
-    }
-
-    // Транзакции по стекам (четвёртый график)
-    if (data.transtions_type && data.transtions_type.combined) {
-      renderTransactionsType(data.transtions_type.combined);
-    } else {
-      console.warn('Нет данных transtions_type или неверный формат:', data.transtions_type);
-    }
-
-  } catch (error) {
-    console.error('Ошибка загрузки:', error);
-    alert('Ошибка загрузки данных: ' + error.message);
-  }
-}
-
-function renderUI(data) {
-  console.log('Рендеринг UI графика с данными:', data);
-  
-  const canvas = document.getElementById('uiChart');
-  if (!canvas) {
-    console.error('Canvas uiChart не найден в DOM');
-    return;
-  }
-
-  destroyChart('ui');
-
-  if (!data || data.length === 0) {
-    console.warn('Нет данных для UI графика');
-    return;
-  }
-
-  const ctx = canvas.getContext('2d');
-  
-  try {
-    charts['ui'] = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: data.map(x => x.type || 'Неизвестно'),
-        datasets: [
-          {
-            label: 'New UI',
-            data: data.map(x => x.clicks_new || 0),
-            backgroundColor: 'rgba(54, 162, 235, 0.7)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-          },
-          {
-            label: 'Old UI',
-            data: data.map(x => x.clicks_old || 0),
-            backgroundColor: 'rgba(255, 99, 132, 0.7)',
-            borderColor: 'rgba(255, 99, 132, 1)',
-            borderWidth: 1
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: {
-              color: '#e2e8f0'
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: '#e2e8f0' },
-            grid: { color: '#334155' }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: '#e2e8f0' },
-            grid: { color: '#334155' }
-          }
+// Функция для отрисовки всех графиков
+async function renderCharts() {
+    try {
+        const filters = getFilters();
+        console.log('Filters:', filters);
+        
+        const response = await fetch('/api/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(filters)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-      }
-    });
-  } catch (error) {
-    console.error('Ошибка создания UI графика:', error);
-  }
+        
+        const data = await response.json();
+        console.log('API Response:', data);
+        
+        // Отрисовываем каждый график
+        renderUIChart(data.ui);
+        renderErrorChart(data.errors);
+        renderTransactionChart(data.transtions);
+        renderTransactionTypeChart(data.transtions_type);
+        
+    } catch (error) {
+        console.error('Error fetching data:', error);
+    }
 }
 
-function renderErrors(data) {
-  console.log('Рендеринг графика ошибок с данными:', data);
-  
-  const canvas = document.getElementById('errorChart');
-  if (!canvas) {
-    console.error('Canvas errorChart не найден в DOM');
-    return;
-  }
-
-  destroyChart('errors');
-
-  if (!data || data.length === 0) {
-    console.warn('Нет данных для графика ошибок');
-    return;
-  }
-
-  const ctx = canvas.getContext('2d');
-  
-  // Группируем данные по версиям UI
-  const versionMap = new Map();
-  
-  data.forEach(item => {
-    const version = item.ui_version || 'Неизвестно';
-    const errors = item.errors || 0;
+// График кликов по UI
+function renderUIChart(uiData) {
+    const ctx = document.getElementById('uiChart').getContext('2d');
     
-    if (versionMap.has(version)) {
-      versionMap.set(version, versionMap.get(version) + errors);
-    } else {
-      versionMap.set(version, errors);
+    if (uiChart) {
+        uiChart.destroy();
     }
-  });
-  
-  const labels = Array.from(versionMap.keys());
-  const values = Array.from(versionMap.values());
-  
-  console.log('Сгруппированные данные ошибок:', { labels, values });
-  
-  try {
-    charts['errors'] = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Количество ошибок',
-          data: values,
-          borderColor: 'rgba(255, 99, 132, 1)',
-          backgroundColor: 'rgba(255, 99, 132, 0.2)',
-          tension: 0.1,
-          fill: true
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: {
-              color: '#e2e8f0'
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: '#e2e8f0' },
-            grid: { color: '#334155' }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: '#e2e8f0' },
-            grid: { color: '#334155' }
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Ошибка создания графика ошибок:', error);
-  }
-}
-
-function renderTransactions(data) {
-  console.log('Рендеринг графика транзакций с данными:', data);
-  
-  const canvas = document.getElementById('transactionChart');
-  if (!canvas) {
-    console.error('Canvas transactionChart не найден в DOM');
-    return;
-  }
-
-  destroyChart('transactions');
-
-  if (!data || data.length === 0) {
-    console.warn('Нет данных для графика транзакций');
-    return;
-  }
-
-  const ctx = canvas.getContext('2d');
-  
-  // Берём топ-10 категорий
-  const topData = data.slice(0, 10);
-  
-  try {
-    charts['transactions'] = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: topData.map(x => x.category || 'Неизвестно'),
-        datasets: [{
-          label: 'Средний чек (₽)',
-          data: topData.map(x => x.avg_sum || 0),
-          backgroundColor: 'rgba(75, 192, 192, 0.7)',
-          borderColor: 'rgba(75, 192, 192, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: {
-              color: '#e2e8f0'
-            }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const item = topData[context.dataIndex];
-                return [
-                  `Средний чек: ${item.avg_sum.toFixed(2)} ₽`,
-                  `Количество: ${item.count}`
-                ];
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { 
-              color: '#e2e8f0',
-              maxRotation: 45,
-              minRotation: 45
-            },
-            grid: { color: '#334155' }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { 
-              color: '#e2e8f0',
-              callback: function(value) {
-                return value + ' ₽';
-              }
-            },
-            grid: { color: '#334155' }
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Ошибка создания графика транзакций:', error);
-  }
-}
-
-function renderTransactionsType(data) {
-  console.log('Рендеринг графика транзакций по стекам с данными:', data);
-  
-  const canvas = document.getElementById('transactionTypeChart');
-  if (!canvas) {
-    console.error('Canvas transactionTypeChart не найден в DOM');
-    return;
-  }
-
-  destroyChart('transactionsType');
-
-  if (!data || !data.labels || !data.datasets) {
-    console.warn('Нет данных для графика транзакций по стекам');
-    return;
-  }
-
-  const ctx = canvas.getContext('2d');
-  
-  try {
-    // Преобразуем данные в формат Chart.js
-    const datasets = data.datasets.map((ds, index) => ({
-      label: ds.label,
-      data: ds.data,
-      backgroundColor: index === 0 ? 'rgba(153, 102, 255, 0.7)' : 'rgba(255, 159, 64, 0.7)',
-      borderColor: index === 0 ? 'rgba(153, 102, 255, 1)' : 'rgba(255, 159, 64, 1)',
-      borderWidth: 1
-    }));
-
-    charts['transactionsType'] = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: data.labels,
-        datasets: datasets
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: {
-              color: '#e2e8f0'
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { 
-              color: '#e2e8f0',
-              maxRotation: 45,
-              minRotation: 45
-            },
-            grid: { color: '#334155' }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: '#e2e8f0' },
-            grid: { color: '#334155' }
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Ошибка создания графика транзакций по стекам:', error);
-  }
-}
-
-// Инициализация
-function initEventListeners() {
-  const filterElements = [
-    'date_from', 'date_to', 'sex', 'min_age', 'max_age', 
-    'city', 'category', 'payment'
-  ];
-  
-  filterElements.forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.addEventListener('change', loadDashboard);
+    
+    if (!uiData || uiData.length === 0) {
+        console.warn('No UI data available');
+        return;
     }
-  });
-
-  const refreshBtn = document.getElementById('refreshBtn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', loadDashboard);
-  }
+    
+    const types = uiData.map(item => item.type);
+    const oldClicks = uiData.map(item => item.clicks_old || 0);
+    const newClicks = uiData.map(item => item.clicks_new || 0);
+    
+    uiChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: types,
+            datasets: [
+                {
+                    label: 'Старый UI',
+                    data: oldClicks,
+                    backgroundColor: '#ef4444'
+                },
+                {
+                    label: 'Новый UI',
+                    data: newClicks,
+                    backgroundColor: '#22c55e'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#e2e8f0' }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                },
+                x: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                }
+            }
+        }
+    });
 }
 
-// Запуск при загрузке
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    initEventListeners();
-    loadDashboard();
-  });
-} else {
-  initEventListeners();
-  loadDashboard();
+// График ошибок по версиям
+function renderErrorChart(errorsData) {
+    const ctx = document.getElementById('errorChart').getContext('2d');
+    
+    if (errorChart) {
+        errorChart.destroy();
+    }
+    
+    if (!errorsData || !errorsData.combined) {
+        console.warn('No error data available');
+        return;
+    }
+    
+    errorChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: errorsData.combined.labels,
+            datasets: errorsData.combined.datasets.map(ds => ({
+                ...ds,
+                backgroundColor: ds.label.includes('Последние') ? '#3b82f6' : '#94a3b8'
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#e2e8f0' }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                },
+                x: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                }
+            }
+        }
+    });
 }
+// График ошибок по версиям - ЛИНЕЙНЫЙ с трендом
+function renderErrorChart(errorsData) {
+    const ctx = document.getElementById('errorChart').getContext('2d');
+    
+    if (errorChart) {
+        errorChart.destroy();
+    }
+    
+    if (!errorsData || !errorsData.combined) {
+        console.warn('No error data available');
+        return;
+    }
+    
+    const labels = errorsData.combined.labels;
+    const currentPeriod = errorsData.combined.datasets[0].data;
+    const previousPeriod = errorsData.combined.datasets[1].data;
+    
+    // Считаем изменение в процентах
+    const changes = labels.map((_, i) => {
+        const prev = previousPeriod[i] || 0;
+        const curr = currentPeriod[i] || 0;
+        if (prev === 0) return 0;
+        return ((curr - prev) / prev * 100).toFixed(1);
+    });
+    
+    errorChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: errorsData.combined.datasets[0].label,
+                    data: currentPeriod,
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.3,
+                    fill: true,
+                    pointStyle: 'circle',
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                },
+                {
+                    label: errorsData.combined.datasets[1].label,
+                    data: previousPeriod,
+                    borderColor: '#6b7280',
+                    backgroundColor: 'transparent',
+                    tension: 0.3,
+                    borderDash: [5, 5],
+                    pointStyle: 'rectRot',
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Динамика ошибок по версиям приложения',
+                    color: '#e2e8f0',
+                    font: { size: 14, weight: 'bold' }
+                },
+                legend: {
+                    labels: { 
+                        color: '#e2e8f0',
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        footer: function(tooltipItems) {
+                            const index = tooltipItems[0].dataIndex;
+                            const change = changes[index];
+                            const color = change > 0 ? '#ef4444' : '#22c55e';
+                            const arrow = change > 0 ? '↑' : '↓';
+                            return [
+                                `Изменение: ${arrow} ${Math.abs(change)}%`,
+                                `Текущий: ${currentPeriod[index]}`,
+                                `Предыдущий: ${previousPeriod[index]}`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' },
+                    title: {
+                        display: true,
+                        text: 'Количество ошибок',
+                        color: '#e2e8f0'
+                    }
+                },
+                x: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { display: false },
+                    title: {
+                        display: true,
+                        text: 'Версия приложения',
+                        color: '#e2e8f0'
+                    }
+                }
+            }
+        }
+    });
+}
+// График среднего чека по категориям
+function renderTransactionChart(transactionsData) {
+    const ctx = document.getElementById('transactionChart').getContext('2d');
+    
+    if (transactionChart) {
+        transactionChart.destroy();
+    }
+    
+    if (!transactionsData || transactionsData.length === 0) {
+        console.warn('No transaction data available');
+        return;
+    }
+    
+    const categories = transactionsData.map(item => item.category);
+    const avgSums = transactionsData.map(item => item.avg_sum || 0);
+    
+    transactionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: categories,
+            datasets: [{
+                label: 'Средний чек',
+                data: avgSums,
+                backgroundColor: '#8b5cf6'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#e2e8f0' }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                },
+                x: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                }
+            }
+        }
+    });
+}
+
+// График популярных акций
+function renderTransactionTypeChart(typesData) {
+    const ctx = document.getElementById('transactionTypeChart').getContext('2d');
+    
+    if (transactionTypeChart) {
+        transactionTypeChart.destroy();
+    }
+    
+    if (!typesData || !typesData.combined) {
+        console.warn('No transaction type data available');
+        return;
+    }
+    
+    transactionTypeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: typesData.combined.labels,
+            datasets: typesData.combined.datasets.map(ds => ({
+                ...ds,
+                backgroundColor: ds.label.includes('Последние') ? '#10b981' : '#6b7280'
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#e2e8f0' }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                },
+                x: {
+                    ticks: { color: '#e2e8f0' },
+                    grid: { color: '#334155' }
+                }
+            }
+        }
+    });
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Dashboard initialized');
+    
+    // Устанавливаем даты по умолчанию
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    document.getElementById('date_from').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('date_to').value = today.toISOString().split('T')[0];
+    
+    // Загружаем данные
+    renderCharts();
+    
+    // Добавляем обработчик на кнопку обновления
+    document.getElementById('refreshBtn').addEventListener('click', renderCharts);
+});
