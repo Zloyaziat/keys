@@ -8,7 +8,7 @@ env_path = Path(__file__).parent.parent.parent / ".env"  # поднимаемс�
 load_dotenv(env_path)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-SECRET_DATABASE_URL = os.getenv("SECRET_DATABASE_URL")
+# SECRET_DATABASE_URL = os.getenv("SECRET_DATABASE_URL")
 # Загружаем .env файл
 load_dotenv()
 Base = declarative_base()
@@ -25,14 +25,14 @@ async def get_db() -> AsyncSession:
     async with async_session_maker_1() as db:
         yield db
 
-engine_secret = create_async_engine(SECRET_DATABASE_URL, echo=False, future=True)
-BaseSecret = declarative_base()
-async_session_maker_2 = async_sessionmaker(
-    bind=engine_secret,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+# engine_secret = create_async_engine(SECRET_DATABASE_URL, echo=False, future=True)
+# BaseSecret = declarative_base()
+# async_session_maker_2 = async_sessionmaker(
+#     bind=engine_secret,
+#     class_=AsyncSession,
+#     expire_on_commit=False,
+# )
 
-async def get_secret_db() -> AsyncSession:
-    async with async_session_maker_2() as db_s:
-        yield db_s
+# async def get_secret_db() -> AsyncSession:
+#     async with async_session_maker_2() as db_s:
+#         yield db_s

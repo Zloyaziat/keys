@@ -11,7 +11,7 @@ from sqlalchemy.sql import over
 from sqlalchemy.orm import selectinload, joinedload
 # Добавляем родительскую директорию в путь
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.db.database import Base, engine, get_db, engine_secret, get_secret_db
+from app.db.database import Base, engine, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, and_, or_, select, func, desc, extract, and_
 from fastapi import File, UploadFile
