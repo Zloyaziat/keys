@@ -1,12 +1,12 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Date, TEXT, Interval, TIMESTAMP
 from sqlalchemy.orm import relationship
-from app.db.database import Base,BaseSecret
+from app.db.database import Base
 
-class User_s(BaseSecret):
-    __tablename__ = "users_s"
+# class User_s(BaseSecret):
+#     __tablename__ = "users_s"
 
-    id = Column(Integer, primary_key=True, index=True)
-    login = Column(TEXT, unique=True, nullable=False)
+#     id = Column(Integer, primary_key=True, index=True)
+#     login = Column(TEXT, unique=True, nullable=False)
 
 
 class User(Base):
