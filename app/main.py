@@ -797,14 +797,14 @@ async def index():
 @app.get('/api/data/')
 async def get_data(db: AsyncSession = Depends(get_db)):
     return {
-        'ui': [],
-        'age_categories': [],
-        'age_categories_2': [],
-        'transtions': await get_table_transtions(db),  # 👈 ВОТ ЭТО ВАЖНО
-        'transtions_type': {"combined": {"labels": [], "datasets": []}},
-        'transtions_by_city': {},
-        'trend': {"history": [], "forecast": [], "category": None},
-        'payment_trend': {"all_methods": {}}
+        'ui': await get_table_ui(db),
+        'age_categories': await get_table_age(db),
+        'age_categories_2': await get_table_age_2(db),
+        'transtions': await get_table_transtions(db),
+        'transtions_type': await get_table_transtions_type(db),
+        'transtions_by_city': await get_table_transtions_by_city(db),
+        'trend': [],
+        'payment_trend': []
     }
 
 
@@ -815,12 +815,12 @@ async def get_data(db: AsyncSession = Depends(get_db)):
 @app.post('/api/')
 async def filter_data(filter: Filter, db: AsyncSession = Depends(get_db)):
     return {
-        'ui': [],
-        'age_categories': [],
-        'age_categories_2': [],
-        'transtions': await get_table_transtions(db),  # 👈 ВОТ ЭТО ВАЖНО
-        'transtions_type': {"combined": {"labels": [], "datasets": []}},
-        'transtions_by_city': {},
-        'trend': {"history": [], "forecast": [], "category": None},
-        'payment_trend': {"all_methods": {}}
+        'ui': await get_table_ui(db, filter),
+        'age_categories': await get_table_age(db, filter),
+        'age_categories_2': await get_table_age_2(db, filter),
+        'transtions': await get_table_transtions(db, filter),
+        'transtions_type': await get_table_transtions_type(db,filter),
+        'transtions_by_city': await get_table_transtions_by_city(db, filter),
+        'trend': [],
+        'payment_trend': []
     }
