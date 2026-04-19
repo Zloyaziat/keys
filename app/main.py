@@ -549,7 +549,6 @@ async def get_transactions_trend(db: AsyncSession, filter: Optional[Filter] = No
 
     # Применяем ВСЕ фильтры
     if filter:
-        
         if filter.sex:
             conditions.append(models.User.sex == filter.sex)
         if filter.age_from:
@@ -560,6 +559,7 @@ async def get_transactions_trend(db: AsyncSession, filter: Optional[Filter] = No
             conditions.append(models.Place.city == filter.city)
         if filter.payment_method:
             conditions.append(models.Ttransaction.payment_method == filter.payment_method)
+        
 
     # Определяем категорию для прогноза
     selected_category = None
@@ -597,67 +597,47 @@ async def get_transactions_trend(db: AsyncSession, filter: Optional[Filter] = No
     
     data = [{"ds": row.date, "y": float(row.total) if row.total else 0} for row in result]
 
-    # ✅ ВАЖНО: Удаляем дубликаты дат
-    unique_data = {}
-    for d in data:
-        # Приводим дату к строке для ключа
-        date_key = d["ds"].strftime("%Y-%m-%d") if hasattr(d["ds"], 'strftime') else str(d["ds"])
-        unique_data[date_key] = d
-    data = list(unique_data.values())
-    # Сортируем по дате
-    data.sort(key=lambda x: x["ds"])
-
     if len(data) < 5:
         return {
-            "history": [{"ds": d["ds"].strftime("%Y-%m-%d") if isinstance(d["ds"], (pd.Timestamp, datetime, date)) else str(d["ds"]), 
-                        "y": d["y"]} for d in data], 
+            "history": data, 
             "forecast": [], 
             "category": selected_category,
             "message": "Недостаточно данных для прогноза (нужно минимум 5 дней)"
         }
 
     # Прогнозирование с помощью Prophet
-    try:
-        df = pd.DataFrame(data)
-        df['ds'] = pd.to_datetime(df['ds'])
-        # Удаляем дубликаты индексов на всякий случай
-        df = df.drop_duplicates(subset=['ds'])
-        df = df.sort_values('ds')
-        
-        model = Prophet(
-            yearly_seasonality=False,
-            weekly_seasonality=True,
-            daily_seasonality=False,
-            changepoint_prior_scale=0.05
-        )
-        model.fit(df)
+    df = pd.DataFrame(data)
+    df['ds'] = pd.to_datetime(df['ds'])
+    
+    model = Prophet(
+        yearly_seasonality=False,
+        weekly_seasonality=True,
+        daily_seasonality=False,
+        changepoint_prior_scale=0.05
+    )
+    model.fit(df)
 
-        future = model.make_future_dataframe(periods=14)
-        forecast = model.predict(future)
+    future = model.make_future_dataframe(periods=14)
+    forecast = model.predict(future)
 
-        forecast_data = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(14)
-        forecast_data['ds'] = forecast_data['ds'].dt.strftime('%Y-%m-%d')
+    forecast_data = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(14)
+    
+    # Конвертируем даты в строки для JSON
+    forecast_data['ds'] = forecast_data['ds'].dt.strftime('%Y-%m-%d')
 
-        return {
-            "history": [{"ds": d["ds"].strftime("%Y-%m-%d") if isinstance(d["ds"], (pd.Timestamp, datetime, date)) else str(d["ds"]), 
-                         "y": d["y"]} for d in data],
-            "forecast": forecast_data.to_dict(orient="records"),
-            "category": selected_category
-        }
-    except Exception as e:
-        print(f"Prophet error: {e}")
-        return {
-            "history": [{"ds": d["ds"].strftime("%Y-%m-%d") if isinstance(d["ds"], (pd.Timestamp, datetime, date)) else str(d["ds"]), 
-                        "y": d["y"]} for d in data],
-            "forecast": [],
-            "category": selected_category,
-            "message": f"Ошибка прогноза: {str(e)}"
-        }
+    return {
+        "history": [{"ds": d["ds"].strftime("%Y-%m-%d") if isinstance(d["ds"], (pd.Timestamp, datetime, date)) else d["ds"], 
+                     "y": d["y"]} for d in data],
+        "forecast": forecast_data.to_dict(orient="records"),
+        "category": selected_category
+    }
 
 async def get_payment_methods_trend(db: AsyncSession, filter: Optional[Filter] = None):
     
+    
     conditions = []
     
+    # Базовый запрос с джойнами
     stmt = (
         select(
             func.date(models.Ttransaction.date).label("date"),
@@ -671,6 +651,7 @@ async def get_payment_methods_trend(db: AsyncSession, filter: Optional[Filter] =
         .outerjoin(models.Place, models.Place.id == models.Ttransaction.place_id)
     )
 
+    # Применяем ВСЕ фильтры
     if filter:
         
         if filter.sex:
@@ -681,45 +662,48 @@ async def get_payment_methods_trend(db: AsyncSession, filter: Optional[Filter] =
             conditions.append(models.User.age <= filter.age_to)
         if filter.city:
             conditions.append(models.Place.city == filter.city)
-        if filter.category:
+        if filter.category:  
             conditions.append(models.Mcc.category_name == filter.category)
+        
 
+    # Определяем, какой метод оплаты анализировать
     selected_payment = None
     if filter and filter.payment_method:
         selected_payment = filter.payment_method
         conditions.append(models.Ttransaction.payment_method == selected_payment)
 
+    # Применяем условия
     if conditions:
         stmt = stmt.where(and_(*conditions))
 
-    stmt = stmt.group_by(func.date(models.Ttransaction.date), models.Ttransaction.payment_method)
+    # Группируем по дате и методу оплаты
+    stmt = stmt.group_by(
+        func.date(models.Ttransaction.date),
+        models.Ttransaction.payment_method
+    )
     stmt = stmt.order_by("date", "payment_method")
 
     result = await db.execute(stmt)
     
-    payment_names = {1: "Наличные", 2: "Карта", 3: "QR-оплата"}
+    # Словарь для маппинга методов оплаты
+    payment_names = {
+        1: "Наличные",
+        2: "Карта", 
+        3: "QR-оплата"
+    }
     
+    # Группируем данные по методам оплаты
     payment_data = {}
     for row in result:
         method = row.payment_method
         if method not in payment_data:
             payment_data[method] = []
+        
         payment_data[method].append({
             "ds": row.date,
             "y": float(row.total_sum) if row.total_sum else 0,
             "count": row.count
         })
-
-    # ✅ Удаляем дубликаты для каждого метода
-    for method in payment_data:
-        unique_data = {}
-        for d in payment_data[method]:
-            date_key = d["ds"].strftime("%Y-%m-%d") if hasattr(d["ds"], 'strftime') else str(d["ds"])
-            unique_data[date_key] = d
-        payment_data[method] = list(unique_data.values())
-        payment_data[method].sort(key=lambda x: x["ds"])
-
-   
 
     # Формируем информацию о контексте для отображения в UI
     context_info = {
@@ -819,8 +803,8 @@ async def get_data(db: AsyncSession = Depends(get_db)):
         'transtions': await get_table_transtions(db),
         'transtions_type': await get_table_transtions_type(db),
         'transtions_by_city': await get_table_transtions_by_city(db),
-        'trend': await get_transactions_trend(db),
-        'payment_trend': await get_payment_methods_trend(db)
+        # 'trend': await get_transactions_trend(db),
+        # 'payment_trend': await get_payment_methods_trend(db)
     }
 
 
@@ -837,6 +821,6 @@ async def filter_data(filter: Filter, db: AsyncSession = Depends(get_db)):
         'transtions': await get_table_transtions(db, filter),
         'transtions_type': await get_table_transtions_type(db,filter),
         'transtions_by_city': await get_table_transtions_by_city(db, filter),
-        'trend': await get_transactions_trend(db, filter),
-        'payment_trend': await get_payment_methods_trend(db, filter)
+        # 'trend': await get_transactions_trend(db, filter),
+        # 'payment_trend': await get_payment_methods_trend(db, filter)
     }
