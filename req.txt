@@ -3,7 +3,7 @@ uvicorn[standard]==0.24.0
 sqlalchemy==2.0.23
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
-pandas
+numpy==1.26.4
 cmdstanpy==1.0.8
 prophet==1.1.5
 python-dateutil==2.8.2
