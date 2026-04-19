@@ -803,8 +803,8 @@ async def get_data(db: AsyncSession = Depends(get_db)):
         'transtions': await get_table_transtions(db),
         'transtions_type': await get_table_transtions_type(db),
         'transtions_by_city': await get_table_transtions_by_city(db),
-        'trend': [],
-        'payment_trend': []
+        'trend': await get_transactions_trend(db),
+        'payment_trend': await get_payment_methods_trend(db)
     }
 
 
@@ -821,6 +821,6 @@ async def filter_data(filter: Filter, db: AsyncSession = Depends(get_db)):
         'transtions': await get_table_transtions(db, filter),
         'transtions_type': await get_table_transtions_type(db,filter),
         'transtions_by_city': await get_table_transtions_by_city(db, filter),
-        'trend': [],
-        'payment_trend': []
+        'trend': await get_transactions_trend(db, filter),
+        'payment_trend': await get_payment_methods_trend(db, filter)
     }
