@@ -109,20 +109,23 @@ canvas {
 </div>
 
 <div class="grid">
+  <!-- 1. Популярные категории у подростков (14-18) -->
   <div class="card">
-    <h3>🖱️ Клики по UI</h3>
+    <h3>👶 Популярные категории у подростков (14-18)</h3>
     <div class="chart-container">
-      <canvas id="uiChart"></canvas>
+      <canvas id="ageCategoryChart"></canvas>
     </div>
   </div>
 
+  <!-- 2. Популярные категории у молодежи (18-35) -->
   <div class="card">
-    <h3>⚠️ Ошибки по версиям</h3>
+    <h3>🧑 Популярные категории у молодежи (18-35)</h3>
     <div class="chart-container">
-      <canvas id="errorChart"></canvas>
+      <canvas id="ageCategoryChart2"></canvas>
     </div>
   </div>
 
+  <!-- 3. Средний чек по категориям -->
   <div class="card">
     <h3>💰 Средний чек по категориям</h3>
     <div class="chart-container">
@@ -130,10 +133,35 @@ canvas {
     </div>
   </div>
 
+  <!-- 4. Популярные акции -->
   <div class="card">
-    <h3> Популярные акции </h3>
+    <h3>🎯 Популярные акции</h3>
     <div class="chart-container">
       <canvas id="transactionTypeChart"></canvas>
+    </div>
+  </div>
+  
+  <!-- 5. Прогноз транзакций -->
+  <div class="card">
+    <h3>📈 Прогноз транзакций по категориям</h3>
+    <div class="chart-container">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+  
+  <!-- 6. Прогноз по методам оплаты -->
+  <div class="card">
+    <h3>💳 Прогноз по методам оплаты</h3>
+    <div class="chart-container">
+      <canvas id="paymentTrendChart"></canvas>
+    </div>
+  </div>
+  
+  <!-- 7. Самые популярные категории по городам -->
+  <div class="card">
+    <h3>🏙️ Самые популярные категории по городам (ТОП-13)</h3>
+    <div class="chart-container">
+      <canvas id="cityTransactionChart"></canvas>
     </div>
   </div>
 </div>

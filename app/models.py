@@ -29,6 +29,7 @@ class Mcc(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    category_name = Column(String, nullable=False)
 
     transaction = relationship("Ttransaction",back_populates="mcc")
 
